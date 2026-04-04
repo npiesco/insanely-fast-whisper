@@ -25,6 +25,11 @@ TORCHCODEC_WARNING_MARKERS = (
     "torchcodec is not installed correctly so built-in audio decoding will fail",
     "std(): degrees of freedom is <= 0.",
 )
+TRANSFORMERS_WARNING_MARKERS = (
+    "Using custom `forced_decoder_ids` from the (generation) config.",
+    "The custom <class 'transformers.generation.logits_process.SuppressTokensLogitsProcessor'> will take precedence.",
+    "The custom <class 'transformers.generation.logits_process.SuppressTokensAtBeginLogitsProcessor'> will take precedence.",
+)
 
 
 def _extract_gated_model_ids(output: str) -> list[str]:
@@ -81,6 +86,7 @@ def test_cli_transcribes_with_explicit_cpu_device(tmp_path: Path) -> None:
         f"STDERR:\n{result.stderr}"
     )
     assert not any(marker in result.stderr for marker in TORCHCODEC_WARNING_MARKERS), result.stderr
+    assert not any(marker in result.stderr for marker in TRANSFORMERS_WARNING_MARKERS), result.stderr
     assert output_path.exists(), "CLI should write the requested transcript file."
     assert "Your file has been transcribed" in result.stdout
 
@@ -144,6 +150,7 @@ def test_cli_diarizes_with_explicit_cpu_device(tmp_path: Path) -> None:
         f"STDERR:\n{result.stderr}"
     )
     assert not any(marker in result.stderr for marker in TORCHCODEC_WARNING_MARKERS), result.stderr
+    assert not any(marker in result.stderr for marker in TRANSFORMERS_WARNING_MARKERS), result.stderr
     assert output_path.exists(), "CLI should write the requested diarized transcript file."
     assert "speaker segmented" in result.stdout
 

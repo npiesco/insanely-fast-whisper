@@ -12,6 +12,41 @@ from .utils.result import build_result
 
 LOGGER = logging.getLogger(__name__)
 
+
+def _clear_generation_attribute(target, attribute_name: str) -> None:
+    if target is not None and hasattr(target, attribute_name):
+        setattr(target, attribute_name, None)
+
+
+def _configure_whisper_generation(pipe, task: str, language: str | None, is_english_only_model: bool) -> None:
+    if getattr(pipe.model.config, "model_type", None) != "whisper":
+        return
+
+    pipeline_generation_config = getattr(pipe, "generation_config", None)
+    model_generation_config = getattr(pipe.model, "generation_config", None)
+
+    for config in (pipeline_generation_config, model_generation_config, pipe.model.config):
+        _clear_generation_attribute(config, "forced_decoder_ids")
+
+    # Whisper injects suppress-token processors before delegating to GenerationMixin.generate().
+    # Clearing the model defaults avoids GenerationMixin rebuilding the same processors a second time.
+    for attribute_name in ("suppress_tokens", "begin_suppress_tokens"):
+        _clear_generation_attribute(model_generation_config, attribute_name)
+
+    if is_english_only_model:
+        for config in (pipeline_generation_config, model_generation_config):
+            _clear_generation_attribute(config, "task")
+            _clear_generation_attribute(config, "language")
+        return
+
+    for config in (pipeline_generation_config, model_generation_config):
+        if config is None:
+            continue
+        if hasattr(config, "task"):
+            config.task = task
+        if hasattr(config, "language"):
+            config.language = language
+
 parser = argparse.ArgumentParser(description="Automatic Speech Recognition")
 parser.add_argument(
     "--file-name",
@@ -147,6 +182,9 @@ def main():
         args.model_name,
     )
 
+    language = None if args.language == "None" else args.language
+    is_english_only_model = args.model_name.rsplit("/", 1)[-1].endswith(".en")
+
     pipe = pipeline(
         "automatic-speech-recognition",
         model=args.model_name,
@@ -154,15 +192,13 @@ def main():
         device=resolved_device,
         model_kwargs={"attn_implementation": attention_implementation},
     )
+    _configure_whisper_generation(pipe, args.task, language, is_english_only_model)
 
     clear_device_cache(resolved_device)
     # elif not args.flash:
         # pipe.model = pipe.model.to_bettertransformer()
 
     ts = "word" if args.timestamp == "word" else True
-
-    language = None if args.language == "None" else args.language
-    is_english_only_model = args.model_name.rsplit("/", 1)[-1].endswith(".en")
 
     generate_kwargs = {}
     if not is_english_only_model:
