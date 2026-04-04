@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import wave
@@ -19,6 +20,10 @@ GATED_MODEL_ERROR_MARKERS = (
     "restricted and you are not in the authorized list",
     "Could not download Pipeline from",
 )
+
+
+def _extract_gated_model_ids(output: str) -> list[str]:
+    return sorted(set(re.findall(r"Access to model ([^ ]+) is restricted", output)))
 
 
 def _write_silence_wav(path: Path, duration_seconds: float = 1.0, sample_rate: int = 16000) -> None:
@@ -112,9 +117,17 @@ def test_cli_diarizes_with_explicit_cpu_device(tmp_path: Path) -> None:
 
     combined_output = f"{result.stdout}\n{result.stderr}"
     if result.returncode != 0 and any(marker in combined_output for marker in GATED_MODEL_ERROR_MARKERS):
+        gated_model_ids = _extract_gated_model_ids(combined_output)
+        if gated_model_ids:
+            inaccessible_models = ", ".join(f"'{model_id}'" for model_id in gated_model_ids)
+            pytest.skip(
+                f"The configured token cannot access required gated model(s): {inaccessible_models}. "
+                f"Accept the required model terms or set {DIARIZATION_MODEL_ENV} to an accessible diarization model."
+            )
         pytest.skip(
-            f"The configured token cannot access diarization model '{diarization_model}'. "
-            f"Accept the model terms or set {DIARIZATION_MODEL_ENV} to an accessible diarization model."
+            f"The configured token cannot access diarization model '{diarization_model}' or one of its gated dependencies "
+            "(for example 'pyannote/segmentation-3.0'). Accept the required model terms or set "
+            f"{DIARIZATION_MODEL_ENV} to an accessible diarization model."
         )
 
     assert result.returncode == 0, (

@@ -117,7 +117,7 @@ The `insanely-fast-whisper` repo provides support for running Whisper on CUDA, `
                         Defines the maximum number of speakers that the system should consider in diarization. Must be at least 1. Cannot be used together with --num-speakers. Must be greater than or equal to --min-speakers if both are specified. (default: None)
 ```
 
-To run diarization on CPU, pass a Hugging Face token that has accepted the Pyannote model terms:
+To run diarization on CPU, pass a Hugging Face token that has accepted the required Pyannote model terms. For the default diarization pipeline, that includes `pyannote/speaker-diarization-3.1` and any gated dependencies it pulls in, such as `pyannote/segmentation-3.0` and `pyannote/speaker-diarization-community-1`:
 
 ```bash
 insanely-fast-whisper --file-name <filename or URL> --device-id cpu --model-name openai/whisper-tiny.en --batch-size 1 --hf-token <your-hf-token>

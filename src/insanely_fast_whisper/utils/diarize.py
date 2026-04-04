@@ -74,6 +74,8 @@ def diarize_audio(diarizer_inputs, diarization_pipeline, num_speakers, min_speak
         min_speakers=min_speakers,
         max_speakers=max_speakers,
     )
+    if hasattr(diarization, "speaker_diarization"):
+        diarization = diarization.speaker_diarization
 
     segments = []
     for segment, track, label in diarization.itertracks(yield_label=True):
