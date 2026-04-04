@@ -1,11 +1,11 @@
 import torch
-from pyannote.audio import Pipeline
 from rich.progress import Progress, TimeElapsedColumn, BarColumn, TextColumn
 import logging
 
 from .diarize import post_process_segments_and_transcripts, diarize_audio, \
     preprocess_inputs
 from .device import resolve_device
+from .hf_compat import suppress_known_pyannote_warnings
 
 
 LOGGER = logging.getLogger(__name__)
@@ -13,6 +13,10 @@ LOGGER = logging.getLogger(__name__)
 
 def diarize(args, outputs, device=None):
     resolved_device = device or resolve_device(args.device_id)
+    suppress_known_pyannote_warnings()
+
+    from pyannote.audio import Pipeline
+
     diarization_pipeline = Pipeline.from_pretrained(
         args.diarization_model,
         token=args.hf_token,

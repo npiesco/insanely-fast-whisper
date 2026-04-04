@@ -20,6 +20,11 @@ GATED_MODEL_ERROR_MARKERS = (
     "restricted and you are not in the authorized list",
     "Could not download Pipeline from",
 )
+TORCHCODEC_WARNING_MARKERS = (
+    "TorchCodec is installed but unusable",
+    "torchcodec is not installed correctly so built-in audio decoding will fail",
+    "std(): degrees of freedom is <= 0.",
+)
 
 
 def _extract_gated_model_ids(output: str) -> list[str]:
@@ -75,6 +80,7 @@ def test_cli_transcribes_with_explicit_cpu_device(tmp_path: Path) -> None:
         f"STDOUT:\n{result.stdout}\n"
         f"STDERR:\n{result.stderr}"
     )
+    assert not any(marker in result.stderr for marker in TORCHCODEC_WARNING_MARKERS), result.stderr
     assert output_path.exists(), "CLI should write the requested transcript file."
     assert "Your file has been transcribed" in result.stdout
 
@@ -137,6 +143,7 @@ def test_cli_diarizes_with_explicit_cpu_device(tmp_path: Path) -> None:
         f"STDOUT:\n{result.stdout}\n"
         f"STDERR:\n{result.stderr}"
     )
+    assert not any(marker in result.stderr for marker in TORCHCODEC_WARNING_MARKERS), result.stderr
     assert output_path.exists(), "CLI should write the requested diarized transcript file."
     assert "speaker segmented" in result.stdout
 
