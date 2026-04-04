@@ -10,7 +10,7 @@ import sys
 # and from https://github.com/m-bain/whisperX/blob/main/whisperx/diarize.py
 
 
-def preprocess_inputs(inputs):
+def load_audio_inputs(inputs):
     if isinstance(inputs, str):
         if inputs.startswith("http://") or inputs.startswith("https://"):
             # We need to actually check for a real protocol, otherwise it's impossible to use a local file
@@ -50,6 +50,15 @@ def preprocess_inputs(inputs):
         raise ValueError(
             "We expect a single channel audio input for ASRDiarizePipeline"
         )
+
+    if not inputs.flags.writeable:
+        inputs = np.array(inputs, copy=True)
+
+    return inputs
+
+
+def preprocess_inputs(inputs):
+    inputs = load_audio_inputs(inputs)
 
     # diarization model expects float32 torch tensor of shape `(channels, seq_len)`
     diarizer_inputs = torch.from_numpy(inputs).float()

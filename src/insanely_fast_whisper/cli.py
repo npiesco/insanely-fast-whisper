@@ -1,11 +1,16 @@
 import json
 import argparse
+import logging
 from transformers import pipeline
 from rich.progress import Progress, TimeElapsedColumn, BarColumn, TextColumn
-import torch
 
-from .utils.diarization_pipeline import diarize
+from .utils.device import clear_device_cache, resolve_attention_implementation, resolve_device, resolve_dtype
+from .utils.diarize import load_audio_inputs
+from .utils.hf_compat import disable_broken_torchcodec
 from .utils.result import build_result
+
+
+LOGGER = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description="Automatic Speech Recognition")
 parser.add_argument(
@@ -19,7 +24,7 @@ parser.add_argument(
     required=False,
     default="0",
     type=str,
-    help='Device ID for your GPU. Just pass the device number when using CUDA, or "mps" for Macs with Apple Silicon. (default: "0")',
+    help='Device to run inference on. Use a CUDA device number like "0", "mps" for Macs with Apple Silicon, or "cpu" for CPU-only systems. If CUDA is unavailable, numeric device IDs fall back to CPU. (default: "0")',
 )
 parser.add_argument(
     "--transcript-path",
@@ -109,6 +114,9 @@ parser.add_argument(
 )
 
 def main():
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
     args = parser.parse_args()
 
     if args.num_speakers is not None and (args.min_speakers is not None or args.max_speakers is not None):
@@ -127,37 +135,57 @@ def main():
         if args.min_speakers > args.max_speakers:
             parser.error("--min-speakers cannot be greater than --max-speakers.")
 
+    resolved_device = resolve_device(args.device_id)
+    resolved_dtype = resolve_dtype(resolved_device)
+    attention_implementation = resolve_attention_implementation(resolved_device, args.flash)
+    disable_broken_torchcodec()
+    LOGGER.info(
+        "Starting transcription with device=%s dtype=%s attention=%s model=%s",
+        resolved_device,
+        resolved_dtype,
+        attention_implementation,
+        args.model_name,
+    )
+
     pipe = pipeline(
         "automatic-speech-recognition",
         model=args.model_name,
-        torch_dtype=torch.float16,
-        device="mps" if args.device_id == "mps" else f"cuda:{args.device_id}",
-        model_kwargs={"attn_implementation": "flash_attention_2"} if args.flash else {"attn_implementation": "sdpa"},
+        dtype=resolved_dtype,
+        device=resolved_device,
+        model_kwargs={"attn_implementation": attention_implementation},
     )
 
-    if args.device_id == "mps":
-        torch.mps.empty_cache()
+    clear_device_cache(resolved_device)
     # elif not args.flash:
         # pipe.model = pipe.model.to_bettertransformer()
 
     ts = "word" if args.timestamp == "word" else True
 
     language = None if args.language == "None" else args.language
+    is_english_only_model = args.model_name.rsplit("/", 1)[-1].endswith(".en")
 
-    generate_kwargs = {"task": args.task, "language": language}
-
-    if args.model_name.split(".")[-1] == "en":
-        generate_kwargs.pop("task")
+    generate_kwargs = {}
+    if not is_english_only_model:
+        generate_kwargs["task"] = args.task
+        if language is not None:
+            generate_kwargs["language"] = language
+    elif language is not None or args.task != "transcribe":
+        LOGGER.info(
+            "Ignoring language/task overrides for English-only model %s",
+            args.model_name,
+        )
 
     with Progress(
-        TextColumn("🤗 [progress.description]{task.description}"),
+        TextColumn("[progress.description]{task.description}"),
         BarColumn(style="yellow1", pulse_style="white"),
         TimeElapsedColumn(),
     ) as progress:
         progress.add_task("[yellow]Transcribing...", total=None)
 
+        transcription_inputs = load_audio_inputs(inputs=args.file_name)
+
         outputs = pipe(
-            args.file_name,
+            transcription_inputs,
             chunk_length_s=30,
             batch_size=args.batch_size,
             generate_kwargs=generate_kwargs,
@@ -165,13 +193,15 @@ def main():
         )
 
     if args.hf_token != "no_token":
-        speakers_transcript = diarize(args, outputs)
+        from .utils.diarization_pipeline import diarize
+
+        speakers_transcript = diarize(args, outputs, device=resolved_device)
         with open(args.transcript_path, "w", encoding="utf8") as fp:
             result = build_result(speakers_transcript, outputs)
             json.dump(result, fp, ensure_ascii=False)
 
         print(
-            f"Voila!✨ Your file has been transcribed & speaker segmented go check it out over here 👉 {args.transcript_path}"
+            f"Your file has been transcribed and speaker segmented. Output: {args.transcript_path}"
         )
     else:
         with open(args.transcript_path, "w", encoding="utf8") as fp:
@@ -179,5 +209,5 @@ def main():
             json.dump(result, fp, ensure_ascii=False)
 
         print(
-            f"Voila!✨ Your file has been transcribed go check it out over here 👉 {args.transcript_path}"
+            f"Your file has been transcribed. Output: {args.transcript_path}"
         )
