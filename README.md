@@ -52,7 +52,13 @@ Run inference from any path on your computer:
 ```bash
 insanely-fast-whisper --file-name <filename or URL>
 ```
-*Note: if you are running on macOS, you also need to add `--device-id mps` flag.*
+*Note: if you are running on macOS, add `--device-id mps`. If you are on a CPU-only system, including Windows on Snapdragon, add `--device-id cpu`.*
+
+CPU-only systems can run the CLI as well. Start with a smaller model and a batch size of `1`:
+
+```bash
+insanely-fast-whisper --file-name <filename or URL> --device-id cpu --model-name openai/whisper-tiny.en --batch-size 1
+```
 
 🔥 You can run [Whisper-large-v3](https://huggingface.co/openai/whisper-large-v3) w/ [Flash Attention 2](https://github.com/Dao-AILab/flash-attention) from this CLI too:
 
@@ -73,18 +79,18 @@ pipx run insanely-fast-whisper --file-name <filename or URL>
 ```
 
 > [!NOTE]
-> The CLI is highly opinionated and only works on NVIDIA GPUs & Mac. Make sure to check out the defaults and the list of options you can play around with to maximise your transcription throughput. Run `insanely-fast-whisper --help` or `pipx run insanely-fast-whisper --help` to get all the CLI arguments along with their defaults. 
+> The CLI supports CUDA, Apple Silicon via `mps`, and CPU execution. Flash Attention 2 is CUDA-only, and CPU transcription is much slower, so smaller Whisper checkpoints and `--batch-size 1` are the safest starting point. Run `insanely-fast-whisper --help` or `pipx run insanely-fast-whisper --help` to get all the CLI arguments along with their defaults. 
 
 
 ## CLI Options
 
-The `insanely-fast-whisper` repo provides an all round support for running Whisper in various settings. Note that as of today 26th Nov, `insanely-fast-whisper` works on both CUDA and mps (mac) enabled devices.
+The `insanely-fast-whisper` repo provides support for running Whisper on CUDA, `mps` on Apple Silicon, and CPU-only systems.
 ```
   -h, --help            show this help message and exit
   --file-name FILE_NAME
                         Path or URL to the audio file to be transcribed.
   --device-id DEVICE_ID
-                        Device ID for your GPU. Just pass the device number when using CUDA, or "mps" for Macs with Apple Silicon. (default: "0")
+                                                Device to run inference on. Use a CUDA device number like "0", "mps" for Macs with Apple Silicon, or "cpu" for CPU-only systems. If CUDA is unavailable, numeric device IDs fall back to CPU. (default: "0")
   --transcript-path TRANSCRIPT_PATH
                         Path to save the transcription output. (default: output.json)
   --model-name MODEL_NAME
@@ -109,6 +115,12 @@ The `insanely-fast-whisper` repo provides an all round support for running Whisp
                         Sets the minimum number of speakers that the system should consider during diarization. Must be at least 1. Cannot be used together with --num-speakers. Must be less than or equal to --max-speakers if both are specified. (default: None)
   --max-speakers MAX_SPEAKERS
                         Defines the maximum number of speakers that the system should consider in diarization. Must be at least 1. Cannot be used together with --num-speakers. Must be greater than or equal to --min-speakers if both are specified. (default: None)
+```
+
+To run diarization on CPU, pass a Hugging Face token that has accepted the Pyannote model terms:
+
+```bash
+insanely-fast-whisper --file-name <filename or URL> --device-id cpu --model-name openai/whisper-tiny.en --batch-size 1 --hf-token <your-hf-token>
 ```
 
 ## Frequently Asked Questions

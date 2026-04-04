@@ -14,8 +14,8 @@ LOGGER = logging.getLogger(__name__)
 def diarize(args, outputs, device=None):
     resolved_device = device or resolve_device(args.device_id)
     diarization_pipeline = Pipeline.from_pretrained(
-        checkpoint_path=args.diarization_model,
-        use_auth_token=args.hf_token,
+        args.diarization_model,
+        token=args.hf_token,
     )
     LOGGER.info("Starting diarization with device=%s model=%s", resolved_device, args.diarization_model)
     diarization_pipeline.to(torch.device(resolved_device))
