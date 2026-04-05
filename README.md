@@ -123,6 +123,28 @@ To run diarization on CPU, pass a Hugging Face token that has accepted the requi
 insanely-fast-whisper --file-name <filename or URL> --device-id cpu --model-name openai/whisper-tiny.en --batch-size 1 --hf-token <your-hf-token>
 ```
 
+The CLI writes a JSON file to `--transcript-path` with this shape:
+
+```json
+{
+    "text": "full transcript",
+    "chunks": [
+        {"text": "...", "timestamp": [0.0, 2.68]}
+    ],
+    "speakers": [
+        {"speaker": "SPEAKER_00", "text": "...", "timestamp": [0.0, 2.68]}
+    ]
+}
+```
+
+Validated CPU diarization example using a local WAV file:
+
+```bash
+insanely-fast-whisper --file-name ./dialog.wav --transcript-path ./dialog.json --device-id cpu --model-name openai/whisper-tiny.en --batch-size 1 --language en --hf-token <your-hf-token>
+```
+
+This CPU diarization path was validated on a synthetic Azure Speech TTS dialogue with three turns (`Aria -> Guy -> Aria`) combined into a single `16.8s` WAV. The generated output contained two distinct speaker labels (`SPEAKER_00` and `SPEAKER_01`) and preserved the turn changes across the transcript.
+
 ## Frequently Asked Questions
 
 **How to correctly install flash-attn to make it work with `insanely-fast-whisper`?**
